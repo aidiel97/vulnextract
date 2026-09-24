@@ -15,6 +15,8 @@ class PhpMethodExtractor(BaseMethodExtractor):
     Supports both snippet format (without <?php) and complete files (with <?php).
     """
 
+    _STATEMENT_FUNCTION_TYPES = ("function_definition", "method_declaration")
+
     def __init__(self) -> None:
         self._parser_php_only = Parser(Language(tree_sitter_php.language_php_only()))
         self._parser_php = Parser(Language(tree_sitter_php.language_php()))
@@ -57,3 +59,25 @@ class PhpMethodExtractor(BaseMethodExtractor):
             walk(tree.root_node)
 
         return methods
+
+    def extract_statements(self, source_code: str) -> List[str]:
+        if not isinstance(source_code, str) or not source_code.strip():
+            return []
+
+        parser = self._parser_php if "<?php" in source_code else self._parser_php_only
+
+        statements = self._extract_statements_via_ast(
+            source_code,
+            parser=parser,
+            function_node_types=self._STATEMENT_FUNCTION_TYPES,
+        )
+
+        # Fallback if nothing decomposable found with the snippet-only grammar
+        if not statements and parser is self._parser_php_only:
+            statements = self._extract_statements_via_ast(
+                source_code,
+                parser=self._parser_php,
+                function_node_types=self._STATEMENT_FUNCTION_TYPES,
+            )
+
+        return statements
